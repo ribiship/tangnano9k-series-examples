@@ -1,0 +1,6 @@
+{
+    "name": "clock_test1",
+    "includedFiles": ["clock_test1.v"],
+    "constraintsFile": "tangnano9k.cst",
+    "top": "clock_test1"
+}

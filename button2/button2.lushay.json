@@ -1,0 +1,6 @@
+{
+    "name": "button2",
+    "includedFiles": ["button2.v"],
+    "constraintsFile": "tangnano9k.cst",
+    "top": "button2"
+}

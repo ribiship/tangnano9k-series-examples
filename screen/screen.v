@@ -72,6 +72,7 @@ module screen
 
     8'hAF   // display on
   };
+
   reg [7:0] commandIndex = SETUP_INSTRUCTIONS * 8;
 
   assign io_sclk = sclk;
@@ -84,23 +85,22 @@ module screen
   initial $readmemh("image.hex", screenBuffer);
 
   always @(posedge clk) begin
+
     case (state)
+    
       STATE_INIT_POWER: begin
+        // wait a bit after reset
         counter <= counter + 1;
-        if (counter < STARTUP_WAIT)
-          reset <= 1;
-        else if (counter < STARTUP_WAIT * 2)
-          reset <= 0;
-        else if (counter < STARTUP_WAIT * 3)
-          reset <= 1;
-        else begin
+        if (counter == STARTUP_WAIT) begin
           state <= STATE_LOAD_INIT_CMD;
           counter <= 32'b0;
         end
       end
+
       STATE_LOAD_INIT_CMD: begin
+        // send initialization commands
         dc <= 0;
-        dataToSend <= startupCommands[(commandIndex-1)-:8'd8];
+        dataToSend <= startupCommands[(commandIndex - 1)-:8'd8];
         state <= STATE_SEND;
         bitNumber <= 3'd7;
         cs <= 0;

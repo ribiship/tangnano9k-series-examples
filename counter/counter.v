@@ -4,7 +4,7 @@ module counter
     output [5:0] led
 );
 
-localparam WAIT_TIME = 13500000;
+localparam WAIT_TIME = 13500000 / 2;
 // 6 leds on board
 reg [5:0] ledCounter = 0;
 // 24 bit counter 0 .. 16777215 big enough to count to WAIT_TIME
