@@ -1,0 +1,6 @@
+{
+    "name": "max7219",
+    "includedFiles": ["max7219.v"],
+    "constraintsFile": "tangnano9k.cst",
+    "top": "max7219"
+}

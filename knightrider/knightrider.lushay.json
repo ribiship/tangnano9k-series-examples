@@ -1,0 +1,6 @@
+{
+    "name": "knightrider",
+    "includedFiles": ["knightrider.v"],
+    "constraintsFile": "tangnano9k.cst",
+    "top": "knightrider"
+}
