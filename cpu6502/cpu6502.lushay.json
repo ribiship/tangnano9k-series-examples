@@ -1,0 +1,6 @@
+{
+    "name": "cpu6502",
+    "includedFiles": ["cpu6502.v"],
+    "constraintsFile": "tangnano9k.cst",
+    "top": "cpu6502"
+}

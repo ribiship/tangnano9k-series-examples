@@ -1,9 +1,10 @@
 module max7219
 #(
-  parameter STARTUP_WAIT = 32'd10_000_000
+  parameter STARTUP_WAIT = 20  // slowClock ticks
 )
 (
   input clk,
+  input btn1,
   output [5:0] led,
 
   //max 7219  
@@ -12,21 +13,21 @@ module max7219
   output io_clk
 );
 
-localparam WAIT_TIME = 1_350_000;
-
+// currrent state 6 bits so we can copy it to leds
+localparam STATE_NONE = 6'd0;
 // initial state
-localparam STATE_INIT_POWER = 8'd0;
-// sent initialization commands to max7219
-localparam STATE_LOAD_INIT_CMD = 8'd1;
+localparam STATE_INITIALIZE = 6'd1;
+// send initialization commands to max7219
+localparam STATE_LOAD_INIT_CMD = 6'd2;
 // send data
-localparam STATE_SEND = 8'd2;
+localparam STATE_SEND = 6'd3;
 // state to check if we are done sending all initialization commands
-localparam STATE_CHECK_FINISHED_INIT = 8'd3;
-// all done
-localparam STATE_DONE = 8'd4;
+localparam STATE_CHECK_FINISHED_INIT = 6'd4;
+
+
 
 // as there are only 5 states, only 3 bits are needed 
-reg [2:0] state = 2'b0;
+reg [5:0] state = STATE_INITIALIZE;
 // 16 bit register to hold current data to send
 reg [15:0] dataToSend;
 // current index of bit in dataToSend register to be sent
@@ -39,54 +40,83 @@ reg rdin = 1'b0;
 reg rcs = 1'b0;
 
 // register to hold led states
-reg [5:0] leds = 6'b111111;
+reg [5:0] leds = 6'b000000;
 // register to hold clock counter 
-reg [32:0] counter = 0;
+reg [31:0] counter = 0;
 
 // number of startup commands
-localparam STARTUP_COMMANDS = 6;
+localparam STARTUP_COMMANDS = 13;
 
 // the commands to send on startup
 // the max7219 needs 16 bits at a time: an 8 bit opcode + 8 bit data, most significant bit first
 
- reg [15:0] startupCommands [0:STARTUP_COMMANDS - 1]; //= {
-//     16'h0c00,  // shutdown + 0 = display off, 1 = display on
-      
-//     16'h0900,  // decode mode for 7 segment displays +  0 = no, 1 = yes
-       
-//     16'h0b07,  // scanlimit + 0 = 1 column .. 7 = scan all 8 columns
-    
-//     16'h0a07,  // medium intensity + 0 = min brightness, h0f = max brightness
-      
-//     16'h0c01,  // shutdown + 0 = display off, 1 = display on
-  
-//     16'h0f01  // display test + 0 = off, 1 = turn all segments
-// };
+// initialization of anything other than a 1 bit array is not allowed
+reg [15:0] startupCommands [0:STARTUP_COMMANDS - 1];
 
 // index of startup command to send
-// as there are only 6 SETUP_COMMANDS we need just 3 bits to hold an index
-reg [2:0] starupIndex = 3'b0; 
+// as there are only STARTUP_COMMANDS commands to send we need just 3 bits to hold an index tothe current one
+reg [3:0] startupIndex = 4'd0; 
 
+// create a slower clock 
+localparam SLOW_COUNT = 1350;
+reg [31:0] slowClockCounter = 32'd0;
+reg slowClk = 1'b0;
 
 always @(posedge clk) begin
-    case (state)
-      STATE_INIT_POWER: begin
-        startupCommands[0] <= 16'h0c00;
+  slowClockCounter <= slowClockCounter + 1;
+  if (slowClockCounter == SLOW_COUNT) begin
+    slowClockCounter <= 32'd0;
+    slowClk <= ~ slowClk;
+  end
+end
 
-        counter <= counter + 1;
-        if (counter == STARTUP_WAIT) begin
+// main state machine
+always @(posedge slowClk) begin
+    if (btn1  == 1'b0) begin
+      state <= STATE_INITIALIZE;
+    end
+    
+    case (state)
+
+      STATE_NONE: begin
+        leds[5] <= ~ leds[5];
+      end
+        
+      STATE_INITIALIZE: begin
+        // turn off display 
+        startupCommands[0] <= 16'h0c00;
+        // do not decode
+        startupCommands[1] <= 16'h0900;
+        // show all displays
+        startupCommands[2] <= 16'h0b07;
+        // set intensity
+        startupCommands[3] <= 16'h0a00;
+        // turn on display
+        startupCommands[4] <= 16'h0c01;
+        // turn on first display
+        startupCommands[5] <= 16'h017e;
+        startupCommands[6] <= 16'h0230;
+        startupCommands[7] <= 16'h036d;
+        startupCommands[8] <= 16'h0479;
+        startupCommands[9] <= 16'h0533;
+        startupCommands[10] <= 16'h065b;
+        startupCommands[11] <= 16'h075f;
+        startupCommands[12] <= 16'h0870;
+   
+       // counter <= counter + 1;
+       // if (counter == STARTUP_WAIT) begin
           state <= STATE_LOAD_INIT_CMD;
           counter <= 32'b0;
-        end
+       // end
       end
 
       STATE_LOAD_INIT_CMD: begin
         rcs <= 0;
-        dataToSend <= startupCommands[commandIndex];
+        dataToSend <= startupCommands[startupIndex];
         state <= STATE_SEND;
         // most significant bit first
         bitNumber <= 4'd15;
-        commandIndex <= commandIndex + 1;
+        startupIndex <= startupIndex + 1;
       end
 
       STATE_SEND: begin
@@ -107,23 +137,20 @@ always @(posedge clk) begin
 
       STATE_CHECK_FINISHED_INIT: begin
           rcs <= 1;
-          if (commandIndex == STARTUP_COMMANDS)
-            state <= STATE_DONE; 
-          else
+          if (startupIndex == STARTUP_COMMANDS)
+            state <= STATE_NONE; 
+          else 
             state <= STATE_LOAD_INIT_CMD; 
       end
-      
-      STATE_DONE: begin
-        // all done    
-      end
-        
     endcase
-    // show state
-    leds[3:0] <= state;
+    if (state != STATE_NONE) begin
+        // show state
+        leds[5:0] <= state;
+    end    
 end
 
 // connect the max7219 to the registers
-assign io_sclk = rclk;
+assign io_clk = rclk;
 assign io_din = rdin;
 assign io_cs = rcs;
 
