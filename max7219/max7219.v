@@ -5,12 +5,13 @@ module max7219
 (
   input clk,
   input btn1,
+  input btn2,
   output [5:0] led,
 
   //max 7219  
-  output io_din,
-  output io_cs,
-  output io_clk
+  output reg rdin,
+  output reg rcs,
+  output reg rclk
 );
 
 // currrent state 6 bits so we can copy it to leds
@@ -36,6 +37,8 @@ localparam STATE_END_DISPLAY = 6'd9;
 reg [7:0] digits [1:8];
 reg [3:0] digit;
 
+reg [7:0] font [0:15];
+
 // current state
 reg [5:0] state = STATE_INITIALIZE;
 // the state to goto when a word has been sent
@@ -46,10 +49,7 @@ reg [15:0] dataToSend;
 // note that the max7219 needs the most significant bit first
 reg [3:0] bitNumber;  
 
-// max7219 signal registers
-reg rclk = 1'b1;
-reg rdin = 1'b0;
-reg rcs = 1'b0;
+
 
 // register to hold led states
 reg [5:0] leds = 6'b000000;
@@ -95,6 +95,10 @@ always @(posedge slowClk) begin
       end
         
       STATE_INITIALIZE: begin
+        // max7219 signal registers
+        rclk = 1'b1;
+        rdin = 1'b0;
+        rcs = 1'b0;
         // turn off display 
         startupCommands[0] <= 16'h0c00;
         // do not decode
@@ -105,7 +109,8 @@ always @(posedge slowClk) begin
         startupCommands[3] <= 16'h0a00;
         // turn on display
         startupCommands[4] <= 16'h0c01;
-        // turn on first display
+        
+        // show 76543210
         startupCommands[5] <= 16'h017e;
         startupCommands[6] <= 16'h0230;
         startupCommands[7] <= 16'h036d;
@@ -114,7 +119,25 @@ always @(posedge slowClk) begin
         startupCommands[10] <= 16'h065b;
         startupCommands[11] <= 16'h075f;
         startupCommands[12] <= 16'h0870;
-   
+        
+        font[0] <= 8'h7e;
+        font[1] <= 8'h30;
+        font[2] <= 8'h6d;
+        font[3] <= 8'h79;
+        font[4] <= 8'h33;
+        font[5] <= 8'h5b;
+        font[6] <= 8'h5f;
+        font[7] <= 8'h70;
+        font[8] <= 8'h7f;
+        font[9] <= 8'h7b;
+        font[10] <= 8'h77;
+        font[11] <= 8'h1f;
+        font[12] <= 8'h4e;
+        font[13] <= 8'h3d;
+        font[14] <= 8'h4f;
+        font[15] <= 8'h47;
+        
+        // prepare display --------
         digits[0] <= 1;
         digits[1] <= 1;
         digits[2] <= 1;
@@ -123,8 +146,7 @@ always @(posedge slowClk) begin
         digits[5] <= 1;
         digits[6] <= 1;
         digits[7] <= 1;
-        
-             
+                    
         // this waiting is needed or else it will not work
         counter <= counter + 1;
         if (counter == STARTUP_WAIT) begin
@@ -204,10 +226,10 @@ always @(posedge slowClk) begin
     end    
 end
 
-// connect the max7219 to the registers
-assign io_clk = rclk;
-assign io_din = rdin;
-assign io_cs = rcs;
+// // connect the max7219 to the registers
+// assign io_clk = rclk;
+// assign io_din = rdin;
+// assign io_cs = rcs;
 
 // connect the leds
 assign led = ~ leds;
