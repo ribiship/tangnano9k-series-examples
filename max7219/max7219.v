@@ -19,15 +19,27 @@ localparam STATE_NONE = 6'd0;
 localparam STATE_INITIALIZE = 6'd1;
 // send initialization commands to max7219
 localparam STATE_LOAD_INIT_CMD = 6'd2;
+// setup send a word
+localparam STATE_BEGIN_SEND_WORD = 6'd3;
 // send data
-localparam STATE_SEND = 6'd3;
+localparam STATE_SEND_WORD = 6'd4;
+// finish send a word
+localparam STATE_END_SEND_WORD = 6'd5;
 // state to check if we are done sending all initialization commands
-localparam STATE_CHECK_FINISHED_INIT = 6'd4;
+localparam STATE_CHECK_FINISHED_INIT = 6'd6;
 
+localparam STATE_BEGIN_DISPLAY = 6'd7;
+localparam STATE_DISPLAY = 6'd8;
+localparam STATE_END_DISPLAY = 6'd9;
 
+// the segments to display
+reg [7:0] digits [1:8];
+reg [3:0] digit;
 
-// as there are only 5 states, only 3 bits are needed 
+// current state
 reg [5:0] state = STATE_INITIALIZE;
+// the state to goto when a word has been sent
+reg [5:0] stateAfterSend = STATE_NONE;
 // 16 bit register to hold current data to send
 reg [15:0] dataToSend;
 // current index of bit in dataToSend register to be sent
@@ -42,7 +54,7 @@ reg rcs = 1'b0;
 // register to hold led states
 reg [5:0] leds = 6'b000000;
 // register to hold clock counter 
-reg [31:0] counter = 0;
+reg [31:0] counter = 32'b0;
 
 // number of startup commands
 localparam STARTUP_COMMANDS = 13;
@@ -58,7 +70,7 @@ reg [15:0] startupCommands [0:STARTUP_COMMANDS - 1];
 reg [3:0] startupIndex = 4'd0; 
 
 // create a slower clock 
-localparam SLOW_COUNT = 1350;
+localparam SLOW_COUNT = 13500;
 reg [31:0] slowClockCounter = 32'd0;
 reg slowClk = 1'b0;
 
@@ -103,23 +115,41 @@ always @(posedge slowClk) begin
         startupCommands[11] <= 16'h075f;
         startupCommands[12] <= 16'h0870;
    
-       // counter <= counter + 1;
-       // if (counter == STARTUP_WAIT) begin
-          state <= STATE_LOAD_INIT_CMD;
+        digits[0] <= 1;
+        digits[1] <= 1;
+        digits[2] <= 1;
+        digits[3] <= 1;
+        digits[4] <= 1;
+        digits[5] <= 1;
+        digits[6] <= 1;
+        digits[7] <= 1;
+        
+             
+        // this waiting is needed or else it will not work
+        counter <= counter + 1;
+        if (counter == STARTUP_WAIT) begin
+          startupIndex <= 4'd0;
           counter <= 32'b0;
-       // end
+          state <= STATE_LOAD_INIT_CMD;
+        end
       end
 
       STATE_LOAD_INIT_CMD: begin
-        rcs <= 0;
         dataToSend <= startupCommands[startupIndex];
-        state <= STATE_SEND;
-        // most significant bit first
-        bitNumber <= 4'd15;
         startupIndex <= startupIndex + 1;
+        state <= STATE_BEGIN_SEND_WORD;
+        stateAfterSend <= STATE_CHECK_FINISHED_INIT;
       end
 
-      STATE_SEND: begin
+      STATE_BEGIN_SEND_WORD: begin
+        rcs <= 0;
+        // most significant bit first
+        bitNumber <= 4'd15;
+        counter <= 32'b0;
+        state <= STATE_SEND_WORD;
+      end
+
+      STATE_SEND_WORD: begin
         if (counter == 32'd0) begin
           counter <= 32'd1;
           rclk <= 0;
@@ -129,20 +159,45 @@ always @(posedge slowClk) begin
           counter <= 32'd0;
           rclk <= 1;
           if (bitNumber == 0)
-            state <= STATE_CHECK_FINISHED_INIT;
+            state <= STATE_END_SEND_WORD;
           else
             bitNumber <= bitNumber - 1;
         end
       end
 
-      STATE_CHECK_FINISHED_INIT: begin
-          rcs <= 1;
-          if (startupIndex == STARTUP_COMMANDS)
-            state <= STATE_NONE; 
-          else 
-            state <= STATE_LOAD_INIT_CMD; 
+      STATE_END_SEND_WORD: begin
+        rcs <= 1;
+        state <= stateAfterSend;
       end
+
+      STATE_CHECK_FINISHED_INIT: begin
+        if (startupIndex == STARTUP_COMMANDS)
+          state <= STATE_BEGIN_DISPLAY; 
+        else 
+          state <= STATE_LOAD_INIT_CMD; 
+      end
+
+      STATE_BEGIN_DISPLAY: begin
+        digit <= 8;
+        state <= STATE_DISPLAY;
+        stateAfterSend <= STATE_END_DISPLAY;
+      end
+      
+      STATE_DISPLAY: begin
+        dataToSend <= { 4'b000, digit, digits[digit] };
+        digit <= digit - 1;
+        state <= STATE_BEGIN_SEND_WORD;
+      end
+      
+      STATE_END_DISPLAY: begin
+        if (digit == 0) 
+          state <= STATE_NONE;
+        else
+          state <= STATE_DISPLAY;
+      end
+        
     endcase
+
     if (state != STATE_NONE) begin
         // show state
         leds[5:0] <= state;
