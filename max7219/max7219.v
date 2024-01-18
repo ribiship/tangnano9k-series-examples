@@ -57,7 +57,7 @@ reg [5:0] leds = 6'b000000;
 reg [31:0] counter = 32'b0;
 
 // number of startup commands
-localparam STARTUP_COMMANDS = 13;
+localparam STARTUP_COMMANDS = 5;
 
 // the commands to send on startup
 // the max7219 needs 16 bits at a time: an 8 bit opcode + 8 bit data, most significant bit first
@@ -92,6 +92,7 @@ always @(posedge slowClk) begin
 
       STATE_NONE: begin
         leds[5] <= ~ leds[5];
+
       end
         
       STATE_INITIALIZE: begin
@@ -109,16 +110,6 @@ always @(posedge slowClk) begin
         startupCommands[3] <= 16'h0a00;
         // turn on display
         startupCommands[4] <= 16'h0c01;
-        
-        // show 76543210
-        startupCommands[5] <= 16'h017e;
-        startupCommands[6] <= 16'h0230;
-        startupCommands[7] <= 16'h036d;
-        startupCommands[8] <= 16'h0479;
-        startupCommands[9] <= 16'h0533;
-        startupCommands[10] <= 16'h065b;
-        startupCommands[11] <= 16'h075f;
-        startupCommands[12] <= 16'h0870;
         
         font[0] <= 8'h7e;
         font[1] <= 8'h30;
@@ -138,14 +129,14 @@ always @(posedge slowClk) begin
         font[15] <= 8'h47;
         
         // prepare display --------
-        digits[0] <= 1;
-        digits[1] <= 1;
-        digits[2] <= 1;
-        digits[3] <= 1;
-        digits[4] <= 1;
-        digits[5] <= 1;
-        digits[6] <= 1;
-        digits[7] <= 1;
+        digits[1] <= 8'h7e;
+        digits[2] <= 8'h30;
+        digits[3] <= 8'h6d;
+        digits[4] <= 8'h79;
+        digits[5] <= 8'h33;
+        digits[6] <= 8'h5b;
+        digits[7] <= 8'h5f;
+        digits[8] <= 8'h70;
                     
         // this waiting is needed or else it will not work
         counter <= counter + 1;
